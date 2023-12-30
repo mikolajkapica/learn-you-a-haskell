@@ -3,6 +3,7 @@
 import Control.Monad.Writer
 import Data.Bifunctor (second)
 import GHC.Iface.Ext.Debug (Diff)
+import System.Clock (getTime, Clock(Monotonic))
 
 countdown :: Int -> Writer [String] Int
 countdown n = do
@@ -15,8 +16,8 @@ countdown n = do
 --     >>= \x -> tell [show x]
 --     >> return (x - 1)
 
-gcd' :: Int -> Int -> (Int, [String])
-gcd' a b = let sol = runWriter $ actualGcd a b in Data.Bifunctor.second fromDiffList sol where
+gcd'' :: Int -> Int -> (Int, [String])
+gcd'' a b = let sol = runWriter $ actualGcd a b in Data.Bifunctor.second fromDiffList sol where
     actualGcd a b
         | b == 0    = do
             tell (toDiffList ["Finished with " ++ show a])
@@ -24,6 +25,34 @@ gcd' a b = let sol = runWriter $ actualGcd a b in Data.Bifunctor.second fromDiff
         | otherwise = do
             tell (toDiffList [show a ++ " mod " ++ show b ++ " = " ++ show (a `mod` b)])
             actualGcd b (a `mod` b)
+
+gcd' :: Int -> Int -> (Int, [String])
+gcd' a b = let sol = runWriter $ actualGcd a b in Data.Bifunctor.second fromDiffList sol where
+    actualGcd a b
+        | b == 0    = do
+            tell (toDiffList ["Finished with " ++ show a])
+            return a
+        | otherwise = do
+            result <- actualGcd b (a `mod` b)
+            tell (toDiffList [show a ++ " mod " ++ show b ++ " = " ++ show (a `mod` b)])
+            return result
+
+finalCountDown :: Int -> Writer [String] ()
+finalCountDown 0 = do tell ["0"]
+finalCountDown x = do
+    finalCountDown (x-1)
+    tell [show x]
+
+timeit f x = do
+    start <- getTime Monotonic
+    result <- f x
+    end <- getTime Monotonic
+    return (result, end - start)
+
+main = do
+    putStrLn "finalCountDown 5000 List"
+    print (snd $ timeit runWriter (finalCountDown 5000))
+    return ()
 
 newtype DiffList a = DiffList { getDiffList :: [a] -> [a] }
 
@@ -40,6 +69,3 @@ instance Monoid (DiffList a) where
     mempty = DiffList (\xs -> [] ++ xs)
 
 (|>) x f = f x
-
-
-
